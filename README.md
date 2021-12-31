@@ -12,8 +12,9 @@ Hydroshare link with all flood maps and exposure datasets for each area in study
 
 ## Contents and Purposes
 ### arcgis_pro directory
-This directory contains a tool that can be imported into ArcGIS ModelBuilder. Steps of the model are explained below
-<li>
-  <ul>Contains a tool to be imported into ArcGIS ModelBuilder</ul>
-  <ul>
-</li>
+This directory contains a tool that can be imported into ArcGIS ModelBuilder. Steps of the model are explained below:
+#### Input Files:
+<li>A shapefile containing the outline of the forecasted flood extent for your region of study
+<li>A raster file containing croplands
+<li>A raster file containing population densities
+<li>A shapefile from Open Street Map (OSM) containing points that identify amenities
