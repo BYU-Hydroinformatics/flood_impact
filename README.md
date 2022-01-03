@@ -12,7 +12,7 @@ Hydroshare link with all flood maps and exposure datasets for each area in study
 
 ## Contents and Purposes
 ### arcgis_pro directory
-This directory contains a tool that can be imported into ArcGIS ModelBuilder. This model is the most visual way to see the process used to determine flood impact, the steps of the model will be explained below:
+This directory contains a tool that can be imported into ArcGIS ModelBuilder. This model is the most visual way to see the process used to determine flood impact, and this process is mostly the same for the qgis tool and python modules as well (excluding a few differences due to the peculiarities of each toolset). The steps of the model are explained below:
 #### Input Files:
 - A shapefile containing the outline of the forecasted flood extent for your region of study.
 - A raster file containing croplands.
