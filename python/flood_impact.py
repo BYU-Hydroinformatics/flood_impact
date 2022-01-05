@@ -1,7 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
+#####################################################################################################
 
-# ### Load Library
+# All file paths for the datasets are examples that were used directly from Evan's local computer
+# The file paths will need to be changed because the filepath locations of datasets per person will be different
+# The datasets will be from OpenStreetMap, Croplands, and WorldPop, as well as the flood maps used
+# Any file path that is called later should be referring to the 'temp' directory that will be created
+#   and will not need to be changed
+
+#####################################################################################################
+
+# Load All Libraries/Modules
 import os
 import datetime
 import shutil
@@ -29,27 +38,42 @@ import contextily as ctx
 # This will import all of the utility functions and more
 from fldimpact_def import *
 
-# Set working directory
-# path = input("Insert path for your working directory:\t")
+#####################################################################################################
+# Set absolute path of working directory
+#   If all of the datasets are in the same directory/folder, then you can use a shortened path when calling the files
 path = "/Users/evan/flood_map_py/"
+
+# Using the operating system (os) module we create a filepath shortcut
 os.chdir(path)
 print("Current Working Directory ", os.getcwd())
 
 #####################################################################################################
-# Load up croplands raster dataset path
+# Load up croplands raster dataset path (either shortened as so or absolute)
 croplands_path = "Peru/croplands_S10W80.tif"
 
-# Load up population raster dataset path
+# Load up population raster dataset path (either shortened as so or absolute)
 pop_path = "Peru/worldpop_peru.tif"
 
-# Load up the OpenSteetMap point shapefile dataset path
+# Load up the OpenSteetMap point shapefile dataset path (either shortened as so or absolute)
 osm_file = "Peru/Chazuta_points.shp"
+
+# Upload the flood map shapefile dataset path (either shortened as so or absolute)
+# This requires that the flood map be a vector shapefile or a geojson
+# If the flood map is in raster form, then use ras2poly function from the fldimpact_def.py before going much further
+# If your flood map is a part of a GeoDatabase, use module fiona
+#  Example code can be found in flood_impact_extraCodeSnippets.py
+flood_file = "Peru/Chazuta_HAND_10m.shp"
+
 #####################################################################################################
 
+# This creates a variable called 'newpath' that is meant to be a temporary directory
+# This directory will be used to store all temporary created files before we execute the script
 newpath = path + 'temp'
 if not os.path.exists(newpath):
     os.makedirs(newpath)
 
+# This will delete all files in the temporary directory if it already exists
+# If it cannot delete a file, it will print a code for you to see what file is troublesome
 for filename in os.listdir(newpath):
     file_path = os.path.join(newpath, filename)
     try:
@@ -60,178 +84,152 @@ for filename in os.listdir(newpath):
     except Exception as e:
         print('Failed to delete %s. Reason: %s' % (file_path, e))
 
-# Setting consistent plotting style throughout notebook
+# This is if you would like to visually inspect the geoprocessing outcomes by plotting the data
+# Setting consistent plotting style throughout script
 sns.set_style("dark")
 sns.set(font_scale=1.5)
-plot_title = "" #input("What is the name of the flooded area?\t")
+plot_title = "This Is The Plot Title"
 begin_time = datetime.datetime.now()
 
 #####################################################################################################
-# Upload the flood map
+##### Can insert geodatabase extra code snippet here if needed #####
 
-# A single .shp file upload
-# These are just file paths on Evan's computer change as you want
-# flood_file = input("File path for the flood map shapefile:")
-# flood_file = "Thailand_Oct2021/fld_poly_thai_100m.shp"
-# flood_file = "Colombia/Inirida_flood_maps/Inirida_crs_4326/Inirida_crs_10Aug18_SRH2D.shp"
-flood_file = "Peru/Chazuta_HAND_10m.shp"
+# Load shapefile to a GeoPandas Database
 flood_map = gpd.read_file(flood_file)
+
+# Gather the Coordinate Reference System (CRS) of the flood map
 new_crs = flood_map.crs
 
-
-'''
-# This is to get flood extent map shapefile from a geodatabase
-
-# for reading a geodatabase for shapefiles like from ArcGIS Pro
-#floodmap_gdb = input("Put in the path of your geodatabase:\t")  #"Chazuta_test.gdb"
-floodmap_gdb = "Chazuta_test.gdb"
-layer = fiona.listlayers(floodmap_gdb)
-print(layer)
-
-#layer_file = input("Type the layer you would like to use from the printed layer text:\t")
-layer_file = input("What flood would you like?:\t")
-for layer in layer:
-    flood_map = gpd.read_file(floodmap_gdb, layer = layer_file)
-flood_map
-new_crs = flood_map.crs'''
 #####################################################################################################
 
-# ### Force the CRS to be the same as the metric data (this case ESPG:4236)
+# ### Force the CRS to be the same for all datasets to reduce geoprocessing errors ( in this case ESPG:4236)
 
-# Since the data we have is in ESPG: 4326, force the shapefile to be same projection if not already there
+# Since the OSM, Croplands, and WorldPop datasets are in ESPG: 4326,
+#   we will force the floood map shapefile to be same projection if it is not already the same
 if flood_map.crs == "EPSG:4326":
     pass
 else:
     # Change the Coordinate Reference System to epsg=4326
     data = flood_map.to_crs(epsg=4326)
 
-    # write shp file in the temp folder
+    # Write new crs shapefile to the temp folder
     data.to_file('temp/fld_poly.shp')
 
-    # Change the flood_map variable to be new shapefile location
+    # Load new crs shapefile to a GeoPandas Dataframe and gather the new crs
     flood_map = gpd.read_file('temp/fld_poly.shp')
     new_crs = flood_map.crs
 
-
-# Save the shapefile polygon to a geojson file to be saved for the SQL database
-
-'''geojson_file = input("Name of the GeoJSON file:")
-geojson_path = 'temp/' + geojson_file + '.geojson' '''
-geojson_path = 'temp/fld_poly_test.geojson'
-flood_map.to_file(geojson_path, driver='GeoJSON')
-f = open('temp/fld_poly_test.geojson',)
-
-fld_json = json.load(f)
+# If you want to save the shapefile polygon to a geojson file, go to flood_impact_extraCodeSnippet.py
 
 #####################################################################################################
-# ## Croplands Raster Data
-# Clip raster data to the extent of the flood map.
+##### Croplands Raster Data #####
+
+
 # Display raster data in Rasterio with flood map on same plot.
 
-# Load up future clipped raster file path
+# Define future clipped raster file path
 crop_clip = "temp/crop_clipped.tif"
 
+# Clip raster data to the extent of the flood map
 ras2shp_extent(croplands_path, flood_map, crop_clip)
 
-# ### Using GDAL, leave only the cell value 2 and delete all other cells
-
-# Load up future reclassified raster file path
+# Define future reclassified raster file path
 reclass_file = "temp/crop_reclass.tif"
 
+# Leave only the cell value 2 and make all others the value of 0 in raster
+# Croplands cell value of 2 is cultivated agriculture. All other cells are either water or other land
 reclass_raster(crop_clip, reclass_file, 2, 2, 2, 0)
 
-# Load up future null raster file path
+# Define future null raster file path
 null_file = "temp/crop_null.tif"
 
+# Make null all cells with raster cell value of 0 leaving only cell value of 2, which is all cultivated agriculture
 ras_Null(reclass_file, null_file, 0)
 
-# ## Convert Raster to Point Data
-# Going to convert raster data to spatial point data frame. Will use .to_pandas() function of GeoRasters package.
-
-# Data already loaded in variable filename
-
+# Convert Raster to Point Data
+# Load data using georasters module (as 'gr')
 data = gr.from_file(null_file)
 
-# Convert to Pandas DataFrame
+# Convert data to Pandas DataFrame (DF)
 single_df = data.to_pandas()
-single_df.head()
 
-# Drop some columns
+# Drop some columns in Pandas DF that are unnecessary
 columns = ['row', 'col', 'value']
 single_df = pd.DataFrame(single_df.drop(columns=columns))
-single_df["Hectares"] = 0.09
-single_df = single_df[['x', 'y', 'Hectares']]  # organize column
-single_df.head()
+
+# Create new column called 'Hectares' and make it the value respective to the resolution
+# 1 hectare is 10,000 m^2. The resolution of this croplands dataset is 30-meters
+# If the resolution is different for the agriculture data used, change the 30 to the new resolution below
+single_df["Hectares"] = (30 ** 2)/10000
+single_df = single_df[['x', 'y', 'Hectares']]  # organize columns
 
 
 # Sequence to make Raster to Point Shapefile
 
-# Load up future shapefile path
+# Define future crop point shapefile path
 crop_pts = "temp/crop_pts.shp"
 
 # Write as CVS file
 single_df.to_csv(str(crop_pts.partition('.')[0] + '.csv'), index=None, header=True)
 
-# Convert PD dataframe to Geopandas data frame
+# Convert Pandas DF to Geopandas DF
 single_df_point = gpd.GeoDataFrame(
     single_df, geometry=gpd.points_from_xy(single_df.x, single_df.y))
 
-# Define Projection
+# Define Projection as the 'new_crs' previously called out
 single_df_point.crs = {'init': new_crs}
 
 # Writes as point shapefile
 single_df_point.to_file(crop_pts)
-
 cpts = gpd.read_file(crop_pts)
 
-# Intersect the points with the flood map
+# Intersect the cropland points with the flood map
 clipped_ag = gpd.clip(cpts, flood_map)
 
-# Obtain total hectares of agriculture in flooded area
+# Sum up total hectares of agriculture in flooded area
 hectares = clipped_ag['Hectares'].sum()
 
-# Create geojson for ag
-ag_geojson_path = 'temp/ag_poly.geojson'
-clipped_ag.to_file(ag_geojson_path, driver='GeoJSON')
-f = open('temp/ag_poly.geojson', )
-
-ag_json = json.load(f)
-
 #####################################################################################################
-# ## Population Raster Dataset
+##### Population Raster Dataset #####
 # This will be similar to the croplands dataset process. We just want the total population within the inundation area.
+# This raster dataset from WorldPop contains raster cell values of the population in 100-meter resolution
+# There are raster cells that have a NoData value. If this is not the case for you, then null those cells values
 
-# Load up future clipped raster file path
+# Define future clipped raster file path
 pop_clip = "temp/pop_clipped.tif"
 
+# Clip raster data to the extent of the flood map
 ras2shp_extent(pop_path, flood_map, pop_clip)
 
-# ## Converting raster to point datafile
-# Data already loaded in variable pop_path
+# Converting raster to point datafile
+# Load data using georasters module (as 'gr')
 data = gr.from_file(pop_clip)
 
-# Convert to Pandas DataFrame
+# Convert to Pandas DF
 pop_df = data.to_pandas()
 
-# Drop some columns and rename others
+# Drop some columns we do not want
 columns =['row','col']
 pop_df = pd.DataFrame(pop_df.drop(columns=columns))
-pop_df.rename(columns = {'value':'Population'}, inplace = True)
-pop_df = pop_df[['x','y','Population']] # organize column
-pop_df = pop_df.astype({'Population': int})
-pop_df.head()
 
-# ### Load up the future population shapefile path
+# rename column named 'value' to 'Population' for easier interpretation
+pop_df.rename(columns = {'value':'Population'}, inplace = True)
+pop_df = pop_df[['x','y','Population']] # organize columns
+
+# convert value type from float to an integer (this will truncate the value rather than round the value conventionally
+pop_df = pop_df.astype({'Population': int})
+
+# Define future population point shapefile path
 pop_pts = "temp/pop_pts.shp"
 
 # Write as CVS file
 pop_df.to_csv(str(pop_pts.partition('.')[0] + '.csv'), index=None, header=True)
 
-# Convert PD dataframe to Geopandas data frame
+# Convert Pandas DF to Geopandas DF
 pop_df_point = gpd.GeoDataFrame(
     pop_df, geometry=gpd.points_from_xy(pop_df.x, pop_df.y))
 
-# Define projection
+# Define Projection as the 'new_crs' previously called out
 pop_df_point.crs = new_crs
 
 # Writes as point shape file
@@ -242,55 +240,44 @@ popct = gpd.read_file(pop_pts)
 # Intersect the points with the flood map
 clipped_pop = gpd.clip(popct, flood_map)
 
-# Get total population in flooded area
+# Sum up total population of agriculture in flooded area
 pop_count = clipped_pop['Population'].sum().astype(int)
 
-# Create geojson for pop
-pop_geojson_path = 'temp/pop_poly.geojson'
-clipped_pop.to_file(pop_geojson_path, driver='GeoJSON')
-f = open('temp/pop_poly.geojson', )
-
-pop_json = json.load(f)
-
 #####################################################################################################
-# ## OpenStreetMap Shapefile Dataset
+##### OpenStreetMap Shapefile Dataset #####
+# Amenities are the infrastructure that we care about from the OpenStreetMap data
+# Amenities can be placed in a greater Amenity group (e.g., Amenity = 'school'; Amenity Group = 'education')
+
+# Load up point shapefile of Infrastructure data to GeoPandas DF
 osm_pts = gpd.read_file(osm_file)
 
 # Intersect the points with the flood map
 osm_cl_df = gpd.clip(osm_pts, flood_map)
 
-# Plot the points on the flood map
+# It is possible that the dataframe is empty so this is a conditional argument to combat that
 if osm_cl_df.empty:
-    print("No amenities in the flooded area!")
-else:
-    osm_geojson_path = 'temp/osm_poly.geojson'
-    osm_cl_df.to_file(osm_geojson_path, driver='GeoJSON')
-    f = open('temp/osm_poly.geojson', )
-
-    osm_json = json.load(f)
-
-# It is possible that the dataframe is empty so this is a conditional argument for that
-if osm_cl_df.empty:
+    # The amenity count
     amen_ct = 0
+
+    # The amenity group count
     amen_gp_ct = 0
 else:
-    # Use a regular expression to extract what the amenity is
+    # Use a regular expression to extract what the amenity is from the column named 'other_tags'
     # Store the amenity is a new column called Amenity
     osm_cl_df['Amenity'] = osm_cl_df['other_tags'].str.extract('"amenity"=>"(.+?)"').astype(str)
 
-    ######################################
-    # Drop some columns and rename others
-    ######################################
+    # Drop the columns we do not need
     columns = ['osm_id', 'name', 'barrier', 'highway', 'ref', 'address', 'is_in', 'place', 'man_made', 'other_tags']
     osm_cl_df = gpd.GeoDataFrame(osm_cl_df.drop(columns=columns))
 
     # Delete rows that are of value 'nan' in Amenity column
     osm_cl_df = osm_cl_df[osm_cl_df.Amenity != 'nan']
 
-    # Create a new column for the amenity group
+    # Create a new column for the amenity group and apply the amen_group function fom fldimpact_def.py
+    # This function is specific to OSM data
     osm_cl_df["Amenity_Group"] = osm_cl_df.apply(lambda row: amen_group(row.Amenity), axis=1)
 
-    # This converts the dataframe to a geodataframe and therefore can be plotted
+    # This converts the dataframe to a geodataframe and therefore can be plotted if desired
     osm_cl_df = gpd.GeoDataFrame(osm_cl_df, geometry='geometry')
 
     # Store the list and values of the Amenities and Amenity Groups
@@ -386,6 +373,7 @@ plt.savefig("temp/all_flood.png")
 plt.show()'''
 
 #####################################################################################################
+# Print off the different values for the flood impact metrics
 print(f"\nThe amenity group table is:\n{amen_gp_ct}")
 
 print(f"\nThe amenity group table is:\n{amen_ct}")
@@ -394,14 +382,5 @@ print(f"\nThe total number of agriculture in the flood extent is:\n{hectares} he
 
 print(f"\nThe total number of people in the flood extent is:\n{pop_count}")
 
-# You can print out the test under here if you want but it's not necessary
-'''
-print(f"\nThe flood map GeoJSON file text is as follows:\n{fld_json}")
-
-print(f"\nThe osm point GeoJSON file text is as follows:\n{osm_json}")
-
-print(f"\nThe ag point GeoJSON file text is as follows:\n{ag_json}")
-
-print(f"\nThe pop point GeoJSON file text is as follows:\n{pop_json}")
-
-print(f"\nThe runtime for the script was:\n{datetime.datetime.now() - begin_time}")'''
+# You can print out the runtime if you want to see if you want but it is not necessary
+'''print(f"\nThe runtime for the script was:\n{datetime.datetime.now() - begin_time}")'''
