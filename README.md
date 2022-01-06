@@ -49,15 +49,30 @@ This directory contains a tool that can be imported into the open-source softwar
 
 ### Python Directory
 This directory contains the python library for flood impact calculation. The main executable is flood_impact.py, and then there are some secondary ones entitled "...loop_directory.py" and "..._loop_gdb.py". All files in the directory will be explained below:
-####fldimpact_def.py
+
+#### fldimpact_def.py
 This file contains the definitions for useful functions that are imported into the main executables. Each function is commented with its use, and they should be understandable upon reading the main process from the ArcGIS description and the description of the executables below.
-####flood_impact.py
+
+#### flood_impact.py
 This executable follows virtually the same process as the ArcGIS Pro model described earlier. The order of steps will be given again below to make the python script easier to follow:
 1. Packages are imported and the working directory is set to a parent directory containing the necessary raster and vector datasets (see [Input Files](#input-files) in the ArcGIS description) (lines 1-48)
 2. A temporary directory is created by appending "temp" to the working directory name (lines 49-61)
 3. The files are coerced to the same coordinate reference system (crs), EPSG 4326. This is the 1984 World Geodetic System (WGS84), which most datasets come in, so this will work for any region of the world. However, each instance of this crs can be changed in the code if you want to use a regional projection, just remember each dataset must be converted to the same projection before the rest of the code from this point is run. You can clone the package and make a separate branch for your region which will allow you to adjust the crs conversions while retaining the original package.
+##### Croplands
 4. The Croplands Raster is clipped to the flood extent using the custom `ras2shp_extent()` method fom fldimpact_def.py
 5. The custom `reclass_raster()` method is used to reclass all values that are not 2 (in other words, all non-cropland cells) to 0.
 6. The `ras_Null()` method converts all 0 values to Null, or no data, and puts that data into a new file "null_file".
 7. The georasters package ("gr") allows you to convert a raster file to a spatial point dataframe, essentially converting it to vector data.
 8. All but the "row", "col", and "value" columns are dropped, and a "hectares column is added with the value of 0.09 (which you may recall is the size in hectares of each cell)
+9. These crop points are saved to a .csv file and also converted to a GeoPandas DataFrame
+10. The points are intersected with the flood map, then the total hectares are summed to find the total crop area within the flood. This data is written into a .json file.
+##### Population
+11. The population dataset follows a similar process, being clipped, converted to points, then intersected and the values summed and added to the .json.
+##### OSM
+12. The Open Street Map amenity points are read into a GeoPandas DataFrame, then clipped to the flood extent and checked to see if any are within it. If so, the process continues to determine what types of amenities are affected.
+13. The amenities are extracted from the "other_tags" column where it contains them (it will say "amenity"=>"(amenity type)") and stored in the new "Amenity" column.
+14. Unnessecary columns and rows where the Amenity value is NaN are removed.
+15. The custom `amen_group()` method is applied to each row to fill the "Amenity_Group" column, then each column is grouped and counted to write the final counts to the .json.
+16. There is a multiline comment containing code to plot the results that can optionally be uncommented.
+
+#### flood_impact_loop_directory.py
