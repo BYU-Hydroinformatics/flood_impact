@@ -76,3 +76,9 @@ This executable follows virtually the same process as the ArcGIS Pro model descr
 16. There is a multiline comment containing code to plot the results that can optionally be uncommented.
 
 #### flood_impact_loop_directory.py
+This file allows you to run the process on a directory full of different flood extents.
+1. The working directory first needs to be set again, and the temporary folder is created. Then all of the rasters and the OSM point file are loaded into variables, as well as a directory containing several flood extents (they should all fit within the rasters and point values you have)
+2. Next, the column names are defined. This really depends on the information you have from the flood data, and what information you want to implement.
+3. The loop will require several adjustments depending on your data and what you want in the final output, but you can follow the comments to understand each step much better than can be outlined here.
+#### flood_impact_loop_gdb.py
+This file is essentially the same as the loop_directory file, but adjusted to loop through a GeoDatabase instead of a simple directory. Each piece of it should be evident from the comments present and the explanation for the other file above.
